@@ -260,3 +260,62 @@ def test_ensure_running_spawns_serve_when_binary_present(monkeypatch, capsys):
     assert calls["cmd"] == ["/usr/local/bin/ollama", "serve"]
     assert calls["kwargs"].get("start_new_session") is True
     assert "up" in capsys.readouterr().out.lower()
+
+
+# ---- ensure_ollama_model_pulled auto-pull ---------------------------------
+
+
+def _no_pull(*a, **k):  # pragma: no cover - guards "must not pull" paths
+    raise AssertionError("ollama pull should not run here")
+
+
+def test_pull_skips_cloud_proxy_models(monkeypatch):
+    """`:cloud` catalog defaults are proxied, not stored locally -> never pull."""
+    import cli.utils as cli_utils
+    monkeypatch.setattr(cli_utils, "_fetch_ollama_models", _no_pull)
+    monkeypatch.setattr("subprocess.run", _no_pull)
+    cli_utils.ensure_ollama_model_pulled("deepseek-v4-pro:cloud", "http://localhost:11434/v1")
+
+
+def test_pull_skips_remote_endpoints(monkeypatch):
+    """A remote server manages its own models -> don't pull locally."""
+    import cli.utils as cli_utils
+    monkeypatch.setattr(cli_utils, "_fetch_ollama_models", _no_pull)
+    monkeypatch.setattr("subprocess.run", _no_pull)
+    cli_utils.ensure_ollama_model_pulled("llama4", "http://remote-host:11434/v1")
+
+
+def test_pull_skips_when_already_present(monkeypatch):
+    """A model already served locally isn't re-pulled."""
+    import cli.utils as cli_utils
+    monkeypatch.setattr(cli_utils, "_fetch_ollama_models", lambda: ["llama4", "qwen3"])
+    monkeypatch.setattr("subprocess.run", _no_pull)
+    cli_utils.ensure_ollama_model_pulled("llama4", "http://localhost:11434/v1")
+
+
+def test_pull_runs_when_missing(monkeypatch, capsys):
+    """A local model not yet present triggers 'ollama pull <model>'."""
+    import cli.utils as cli_utils
+    monkeypatch.setattr(cli_utils, "_fetch_ollama_models", lambda: [])
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/local/bin/ollama")
+    calls = {}
+
+    def _fake_run(cmd, **kwargs):
+        calls["cmd"] = cmd
+        return type("R", (), {"returncode": 0})()
+
+    monkeypatch.setattr("subprocess.run", _fake_run)
+    cli_utils.ensure_ollama_model_pulled("llama4", "http://localhost:11434/v1")
+    assert calls["cmd"] == ["/usr/local/bin/ollama", "pull", "llama4"]
+    assert "Pulled llama4" in capsys.readouterr().out
+
+
+def test_pull_warns_when_binary_missing(monkeypatch, capsys):
+    """Missing 'ollama' binary yields an advisory hint, no crash."""
+    import cli.utils as cli_utils
+    monkeypatch.setattr(cli_utils, "_fetch_ollama_models", lambda: [])
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.setattr("subprocess.run", _no_pull)
+    cli_utils.ensure_ollama_model_pulled("llama4", "http://localhost:11434/v1")
+    out = capsys.readouterr().out
+    assert "ollama pull llama4" in out

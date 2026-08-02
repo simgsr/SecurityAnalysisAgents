@@ -32,6 +32,7 @@ from cli.utils import (
     confirm_ollama_endpoint,
     detect_asset_type,
     ensure_api_key,
+    ensure_ollama_model_pulled,
     ensure_ollama_running,
     get_ticker,
     prompt_openai_compatible_url,
@@ -693,6 +694,14 @@ def get_user_selections():
         )
         selected_shallow_thinker = select_shallow_thinking_agent(selected_llm_provider)
         selected_deep_thinker = select_deep_thinking_agent(selected_llm_provider)
+
+    # For Ollama, make sure the chosen models are actually pulled locally so the
+    # run doesn't fail at first inference. dict.fromkeys de-dupes when the quick
+    # and deep models are the same; :cloud proxy models and remote endpoints are
+    # skipped inside the helper.
+    if selected_llm_provider == "ollama":
+        for model in dict.fromkeys([selected_shallow_thinker, selected_deep_thinker]):
+            ensure_ollama_model_pulled(model, backend_url)
 
     # Step 8: Provider-specific reasoning/thinking configuration. Each knob is
     # settable via its SECURITYANALYSISAGENTS_* env var; when that var is set (or the

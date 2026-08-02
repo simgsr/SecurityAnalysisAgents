@@ -721,6 +721,50 @@ def ensure_ollama_running(url: str) -> None:
     )
 
 
+def ensure_ollama_model_pulled(model: str, url: str) -> None:
+    """Pull ``model`` into the local Ollama server when it isn't there yet.
+
+    Runs after model selection so the analysis doesn't fail at first inference
+    on a model that was never downloaded. Skips cases where a local pull makes
+    no sense: a remote endpoint (see :func:`_is_local_url`) manages its own
+    models, and the catalog's ``:cloud`` defaults are proxied by ollama-serve
+    rather than stored locally. When the model is already served we do nothing;
+    otherwise we run ``ollama pull <model>`` in the foreground so its download
+    progress is visible. Any failure is advisory, never fatal.
+    """
+    import shutil
+    import subprocess
+
+    if not _is_local_url(url):
+        return  # remote server manages its own models
+    if model.endswith(":cloud"):
+        return  # proxied by ollama-serve, not a local pull
+    if model in _fetch_ollama_models():
+        return  # already available
+
+    ollama_bin = shutil.which("ollama")
+    if ollama_bin is None:
+        console.print(
+            f"[yellow]Can't pull {model!r}: the 'ollama' command wasn't found on "
+            f"PATH. Install it or pull manually with 'ollama pull {model}'.[/yellow]"
+        )
+        return
+
+    console.print(f"[cyan]Pulling Ollama model {model!r} (not found locally)…[/cyan]")
+    try:
+        result = subprocess.run([ollama_bin, "pull", model])
+    except Exception as e:
+        console.print(f"[yellow]Could not pull {model!r} automatically: {e}[/yellow]")
+        return
+    if result.returncode == 0:
+        console.print(f"[green]✓ Pulled {model}.[/green]")
+    else:
+        console.print(
+            f"[yellow]'ollama pull {model}' exited with code {result.returncode}. "
+            f"The run may fail if the model isn't available.[/yellow]"
+        )
+
+
 def confirm_ollama_endpoint(url: str) -> None:
     """Show the resolved Ollama endpoint after provider selection.
 
