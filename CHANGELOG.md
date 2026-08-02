@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Breaking changes within the 0.x line are called out explicitly.
 
+## [Unreleased]
+
+### Changed
+
+- **Project renamed TradingAgents → SecurityAnalysisAgents.** The Python package
+  (`tradingagents` → `securityanalysisagents`), the installed CLI command
+  (`tradingagents` → `securityanalysisagents`), the config env-var prefix
+  (`TRADINGAGENTS_*` → `SECURITYANALYSISAGENTS_*`), and the home directory
+  (`~/.tradingagents/` → `~/.securityanalysisagents/`) all follow the new name.
+
+  **Migration for existing users:**
+  - Move your persisted state so cache, checkpoints, and the decision log carry
+    over: `mv ~/.tradingagents ~/.securityanalysisagents`
+  - Rename any `TRADINGAGENTS_*` variables in your `.env` to the
+    `SECURITYANALYSISAGENTS_*` prefix (the old names are no longer read).
+  - Update imports from `tradingagents...` to `securityanalysisagents...` and
+    `TradingAgentsGraph` to `SecurityAnalysisAgentsGraph`; reinstall so the
+    renamed CLI entrypoint is on your `PATH` (`pip install -e .`).
+
 ## [0.3.1] — 2026-07-05
 
 Correctness and stability patch: data look-ahead, graph-router crash-safety,
