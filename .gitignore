@@ -149,7 +149,10 @@ activemq-data/
 
 # Environments
 .env
-.envrc
+# .envrc is tracked (committed) so direnv auto-activation works on clone; its
+# local per-machine state lives in .direnv/, which is ignored below.
+!.envrc
+.direnv/
 .venv
 env/
 venv/

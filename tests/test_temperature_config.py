@@ -8,7 +8,7 @@ import importlib
 
 import pytest
 
-from tradingagents.llm_clients.factory import create_llm_client
+from securityanalysisagents.llm_clients.factory import create_llm_client
 
 
 @pytest.mark.unit
@@ -43,18 +43,18 @@ class TestTemperatureForwarding:
 @pytest.mark.unit
 class TestTemperatureEnvOverlay:
     def test_env_sets_temperature(self, monkeypatch):
-        import tradingagents.default_config as dc
-        monkeypatch.setenv("TRADINGAGENTS_TEMPERATURE", "0.2")
+        import securityanalysisagents.default_config as dc
+        monkeypatch.setenv("SECURITYANALYSISAGENTS_TEMPERATURE", "0.2")
         importlib.reload(dc)
         # Stored on config (string from env is fine; consumed via float()).
         assert dc.DEFAULT_CONFIG["temperature"] in ("0.2", 0.2)
         assert float(dc.DEFAULT_CONFIG["temperature"]) == 0.2
-        monkeypatch.delenv("TRADINGAGENTS_TEMPERATURE", raising=False)
+        monkeypatch.delenv("SECURITYANALYSISAGENTS_TEMPERATURE", raising=False)
         importlib.reload(dc)
 
     def test_default_temperature_is_none(self, monkeypatch):
-        import tradingagents.default_config as dc
-        monkeypatch.delenv("TRADINGAGENTS_TEMPERATURE", raising=False)
+        import securityanalysisagents.default_config as dc
+        monkeypatch.delenv("SECURITYANALYSISAGENTS_TEMPERATURE", raising=False)
         importlib.reload(dc)
         assert dc.DEFAULT_CONFIG["temperature"] is None
 
@@ -64,11 +64,11 @@ class TestProviderKwargsTemperature:
     """_get_provider_kwargs float-coerces and forwards temperature, or omits it."""
 
     def _kwargs_for(self, temperature):
-        from tradingagents.graph.trading_graph import TradingAgentsGraph
+        from securityanalysisagents.graph.trading_graph import SecurityAnalysisAgentsGraph
         # Call the method without constructing the full graph.
-        graph = TradingAgentsGraph.__new__(TradingAgentsGraph)
+        graph = SecurityAnalysisAgentsGraph.__new__(SecurityAnalysisAgentsGraph)
         graph.config = {"llm_provider": "openai", "temperature": temperature}
-        return TradingAgentsGraph._get_provider_kwargs(graph)
+        return SecurityAnalysisAgentsGraph._get_provider_kwargs(graph)
 
     def test_float_string_coerced(self):
         assert self._kwargs_for("0.3")["temperature"] == 0.3

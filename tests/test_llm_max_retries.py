@@ -10,8 +10,11 @@ import importlib
 
 import pytest
 
-import tradingagents.default_config as default_config_module
-from tradingagents.graph.trading_graph import TradingAgentsGraph, _coerce_max_retries
+import securityanalysisagents.default_config as default_config_module
+from securityanalysisagents.graph.trading_graph import (
+    SecurityAnalysisAgentsGraph,
+    _coerce_max_retries,
+)
 
 # --- coercion / validation -------------------------------------------------
 
@@ -45,7 +48,7 @@ def test_coerce_rejects_non_integers(bad):
 # --- forwarding into provider kwargs --------------------------------------
 
 def _bare_graph(config):
-    g = object.__new__(TradingAgentsGraph)
+    g = object.__new__(SecurityAnalysisAgentsGraph)
     g.config = config
     return g
 
@@ -94,7 +97,7 @@ def test_default_is_none(monkeypatch):
 
 @pytest.mark.unit
 def test_env_override_sets_config(monkeypatch):
-    dc = _reload_with_env(monkeypatch, TRADINGAGENTS_LLM_MAX_RETRIES="8")
+    dc = _reload_with_env(monkeypatch, SECURITYANALYSISAGENTS_LLM_MAX_RETRIES="8")
     # None-default key: env value arrives as a string and is coerced downstream.
     assert dc.DEFAULT_CONFIG["llm_max_retries"] == "8"
     assert _coerce_max_retries(dc.DEFAULT_CONFIG["llm_max_retries"]) == 8

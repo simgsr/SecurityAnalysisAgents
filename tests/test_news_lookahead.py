@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-import tradingagents.dataflows.yfinance_news as ynews
+import securityanalysisagents.dataflows.yfinance_news as ynews
 
 
 def _epoch(date_str):

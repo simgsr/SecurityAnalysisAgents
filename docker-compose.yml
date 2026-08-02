@@ -1,10 +1,10 @@
 services:
-  tradingagents:
+  securityanalysisagents:
     build: .
     env_file:
       - .env
     volumes:
-      - tradingagents_data:/home/appuser/.tradingagents
+      - securityanalysisagents_data:/home/appuser/.securityanalysisagents
     tty: true
     stdin_open: true
 
@@ -15,15 +15,15 @@ services:
     profiles:
       - ollama
 
-  tradingagents-ollama:
+  securityanalysisagents-ollama:
     build: .
     env_file:
       - .env
     environment:
-      - TRADINGAGENTS_LLM_PROVIDER=ollama
+      - SECURITYANALYSISAGENTS_LLM_PROVIDER=ollama
       - OLLAMA_BASE_URL=http://ollama:11434/v1
     volumes:
-      - tradingagents_data:/home/appuser/.tradingagents
+      - securityanalysisagents_data:/home/appuser/.securityanalysisagents
     depends_on:
       - ollama
     tty: true
@@ -32,5 +32,5 @@ services:
       - ollama
 
 volumes:
-  tradingagents_data:
+  securityanalysisagents_data:
   ollama_data:

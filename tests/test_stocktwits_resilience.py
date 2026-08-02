@@ -13,7 +13,7 @@ from urllib.error import HTTPError
 
 import pytest
 
-from tradingagents.dataflows import stocktwits
+from securityanalysisagents.dataflows import stocktwits
 
 
 def _raise(exc):

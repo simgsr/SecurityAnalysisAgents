@@ -6,8 +6,8 @@ from dotenv import find_dotenv, set_key
 from rich.console import Console
 
 from cli.models import AnalystType, AssetType
-from tradingagents.llm_clients.api_key_env import get_api_key_env
-from tradingagents.llm_clients.model_catalog import get_model_options
+from securityanalysisagents.llm_clients.api_key_env import get_api_key_env
+from securityanalysisagents.llm_clients.model_catalog import get_model_options
 
 console = Console()
 
@@ -71,7 +71,7 @@ def normalize_ticker_symbol(ticker: str) -> str:
     plain upper-case if the data layer is unavailable.
     """
     try:
-        from tradingagents.dataflows.symbol_utils import normalize_symbol
+        from securityanalysisagents.dataflows.symbol_utils import normalize_symbol
 
         return normalize_symbol(ticker)
     except Exception:
@@ -284,6 +284,71 @@ def select_openrouter_model(mode: str) -> str:
     return choice
 
 
+def _fetch_ollama_models() -> list[str]:
+    """List model IDs the running Ollama server currently serves.
+
+    Queries the OpenAI-compatible ``/v1/models`` endpoint at the resolved
+    Ollama base URL (``OLLAMA_BASE_URL`` or the localhost default), so the
+    picker mirrors ``ollama list`` instead of a hardcoded set that goes stale.
+    Returns ``[]`` (and warns) when the server is unreachable, letting the
+    caller fall back to the curated cloud defaults from the model catalog.
+    """
+    import requests
+    base_url = os.environ.get("OLLAMA_BASE_URL") or "http://localhost:11434/v1"
+    try:
+        resp = requests.get(f"{base_url.rstrip('/')}/models", timeout=5)
+        resp.raise_for_status()
+        return [m["id"] for m in resp.json().get("data", []) if m.get("id")]
+    except Exception as e:
+        console.print(f"\n[yellow]Could not list local Ollama models: {e}[/yellow]")
+        return []
+
+
+def select_ollama_model(mode: str) -> str:
+    """Select an Ollama model: curated cloud defaults + whatever is installed.
+
+    The catalog's ``:cloud`` DeepSeek defaults are always offered first (they're
+    proxied by ollama-serve and may not show up in a local pull list); the rest
+    of the list is fetched live from the running server so it reflects the user's
+    actual ``ollama list``. ``mode`` ("quick"/"deep") labels the prompt so the two
+    consecutive Ollama selections are distinguishable, like the other providers.
+    """
+    choices: list[questionary.Choice] = []
+    seen: set[str] = set()
+    # Curated cloud defaults first (drop the catalog's trailing "custom" — we
+    # append our own after the live list).
+    for display, value in get_model_options("ollama", mode):
+        if value == "custom":
+            continue
+        choices.append(questionary.Choice(display, value=value))
+        seen.add(value)
+    # Then whatever the server actually serves, de-duped against the defaults.
+    for model_id in _fetch_ollama_models():
+        if model_id in seen:
+            continue
+        choices.append(questionary.Choice(model_id, value=model_id))
+        seen.add(model_id)
+    choices.append(questionary.Choice("Custom model ID", value="custom"))
+
+    choice = questionary.select(
+        f"Select Your [{mode.title()}-Thinking] Ollama Model:",
+        choices=choices,
+        instruction="\n- Use arrow keys to navigate\n- Press Enter to select",
+        style=questionary.Style([
+            ("selected", "fg:magenta noinherit"),
+            ("highlighted", "fg:magenta noinherit"),
+            ("pointer", "fg:magenta noinherit"),
+        ]),
+    ).ask()
+
+    if choice is None:
+        console.print(f"\n[red]No {mode} thinking llm engine selected. Exiting...[/red]")
+        exit(1)
+    if choice == "custom":
+        return _prompt_custom_model_id()
+    return choice
+
+
 def _prompt_custom_model_id() -> str:
     """Prompt user to type a custom model ID."""
     return _require_text("Enter model ID:", "Please enter a model ID.")
@@ -293,6 +358,9 @@ def _select_model(provider: str, mode: str) -> str:
     """Select a model for the given provider and mode (quick/deep)."""
     if provider.lower() == "openrouter":
         return select_openrouter_model(mode)
+
+    if provider.lower() == "ollama":
+        return select_ollama_model(mode)
 
     if provider.lower() == "azure":
         return _require_text(
@@ -380,7 +448,7 @@ def resolve_backend_url(
 ) -> str | None:
     """Resolve the backend URL with the correct precedence.
 
-    An explicit env override (``env_url``, from ``TRADINGAGENTS_LLM_BACKEND_URL``
+    An explicit env override (``env_url``, from ``SECURITYANALYSISAGENTS_LLM_BACKEND_URL``
     via ``DEFAULT_CONFIG['backend_url']``) is honored regardless of how the
     provider was chosen — interactively or from the environment (#978).
     Otherwise the menu/region URL, then the provider's default.
@@ -617,7 +685,7 @@ def ensure_api_key(provider: str) -> str | None:
 
     # Key-optional providers (generic OpenAI-compatible / local servers) read the
     # key when present but must never force an interactive prompt.
-    from tradingagents.llm_clients.openai_client import OPENAI_COMPATIBLE_PROVIDERS
+    from securityanalysisagents.llm_clients.openai_client import OPENAI_COMPATIBLE_PROVIDERS
     spec = OPENAI_COMPATIBLE_PROVIDERS.get(provider.lower())
     if spec is not None and spec.key_optional:
         return os.environ.get(env_var)

@@ -14,9 +14,9 @@ from unittest import mock
 import pandas as pd
 import pytest
 
-from tradingagents.dataflows import interface, stockstats_utils
-from tradingagents.dataflows.config import set_config
-from tradingagents.dataflows.symbol_utils import NoMarketDataError
+from securityanalysisagents.dataflows import interface, stockstats_utils
+from securityanalysisagents.dataflows.config import set_config
+from securityanalysisagents.dataflows.symbol_utils import NoMarketDataError
 
 
 @pytest.mark.unit

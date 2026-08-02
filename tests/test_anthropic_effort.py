@@ -8,7 +8,7 @@ support automatically.
 
 import pytest
 
-from tradingagents.llm_clients import anthropic_client as mod
+from securityanalysisagents.llm_clients import anthropic_client as mod
 
 
 def _capture_kwargs(monkeypatch):

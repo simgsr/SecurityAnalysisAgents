@@ -23,11 +23,11 @@ from __future__ import annotations
 import argparse
 import sys
 
-from tradingagents.agents.managers.portfolio_manager import create_portfolio_manager
-from tradingagents.agents.managers.research_manager import create_research_manager
-from tradingagents.agents.trader.trader import create_trader
-from tradingagents.graph.signal_processing import SignalProcessor
-from tradingagents.llm_clients import create_llm_client
+from securityanalysisagents.agents.managers.portfolio_manager import create_portfolio_manager
+from securityanalysisagents.agents.managers.research_manager import create_research_manager
+from securityanalysisagents.agents.trader.trader import create_trader
+from securityanalysisagents.graph.signal_processing import SignalProcessor
+from securityanalysisagents.llm_clients import create_llm_client
 
 PROVIDER_DEFAULTS = {
     "openai": ("gpt-5.4-mini", None),

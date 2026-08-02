@@ -7,9 +7,9 @@ row omitted).
 import pandas as pd
 import pytest
 
-import tradingagents.dataflows.stockstats_utils as su
-import tradingagents.dataflows.y_finance as yfin
-from tradingagents.dataflows.config import set_config
+import securityanalysisagents.dataflows.stockstats_utils as su
+import securityanalysisagents.dataflows.y_finance as yfin
+from securityanalysisagents.dataflows.config import set_config
 
 
 @pytest.mark.unit
