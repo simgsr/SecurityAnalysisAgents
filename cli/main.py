@@ -32,6 +32,7 @@ from cli.utils import (
     confirm_ollama_endpoint,
     detect_asset_type,
     ensure_api_key,
+    ensure_ollama_running,
     get_ticker,
     prompt_openai_compatible_url,
     resolve_backend_url,
@@ -664,9 +665,11 @@ def get_user_selections():
         if selected_llm_provider == "openai_compatible" and not backend_url:
             backend_url = prompt_openai_compatible_url()
 
-        # For Ollama, surface the resolved endpoint (OLLAMA_BASE_URL vs default)
-        # before model selection so it's obvious where we're connecting.
+        # For Ollama, auto-start a local server if one isn't running, then
+        # surface the resolved endpoint (OLLAMA_BASE_URL vs default) before
+        # model selection so it's obvious where we're connecting.
         if selected_llm_provider == "ollama":
+            ensure_ollama_running(backend_url)
             confirm_ollama_endpoint(backend_url)
 
         # Confirm the provider's API key is present; prompt the user to paste

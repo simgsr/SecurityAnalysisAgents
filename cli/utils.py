@@ -414,6 +414,9 @@ def _llm_provider_table() -> list[tuple[str, str, str | None]]:
     """
     ollama_url = os.environ.get("OLLAMA_BASE_URL") or "http://localhost:11434/v1"
     return [
+        # Ollama is listed first: it's the local, keyless default and the most
+        # frequently used provider for this workflow.
+        ("Ollama", "ollama", ollama_url),
         ("OpenAI", "openai", "https://api.openai.com/v1"),
         ("Google", "google", None),
         ("Anthropic", "anthropic", "https://api.anthropic.com/"),
@@ -429,7 +432,6 @@ def _llm_provider_table() -> list[tuple[str, str, str | None]]:
         ("NVIDIA NIM", "nvidia", "https://integrate.api.nvidia.com/v1"),
         ("Azure OpenAI", "azure", None),
         ("Amazon Bedrock", "bedrock", None),
-        ("Ollama", "ollama", ollama_url),
         ("OpenAI-compatible (vLLM, LM Studio, llama.cpp, custom relay)", "openai_compatible", None),
     ]
 
@@ -638,6 +640,87 @@ def ask_minimax_region() -> tuple[str, str]:
     ).ask()
 
 
+def _ollama_server_up(url: str, timeout: float = 2.0) -> bool:
+    """Return True if an Ollama server answers at ``url``.
+
+    Probes the OpenAI-compatible ``/models`` endpoint (the same one the model
+    picker uses), so "up" means "actually serving", not just "port open".
+    """
+    import requests
+
+    try:
+        resp = requests.get(f"{url.rstrip('/')}/models", timeout=timeout)
+        return resp.ok
+    except Exception:
+        return False
+
+
+def _is_local_url(url: str) -> bool:
+    """True when ``url`` points at this machine (localhost / 127.0.0.1 / [::1]).
+
+    Auto-starting a server only makes sense locally; a remote OLLAMA_BASE_URL is
+    someone else's box and we must never try to spawn a process for it.
+    """
+    from urllib.parse import urlparse
+
+    host = (urlparse(url).hostname or "").lower()
+    return host in ("localhost", "127.0.0.1", "::1", "")
+
+
+def ensure_ollama_running(url: str) -> None:
+    """Start a local ``ollama serve`` if one isn't already answering at ``url``.
+
+    Only acts on local endpoints (see :func:`_is_local_url`) — a remote
+    ``OLLAMA_BASE_URL`` is left untouched. If the server is already up we do
+    nothing. Otherwise we look for the ``ollama`` binary and, when present,
+    launch ``ollama serve`` detached in the background, then poll briefly for
+    it to come up. Any failure is surfaced as an advisory warning rather than a
+    hard error, since the user can still point at a server we can't manage.
+    """
+    import shutil
+    import subprocess
+    import time
+
+    if not _is_local_url(url):
+        return  # remote server — not ours to manage
+    if _ollama_server_up(url):
+        return  # already serving
+
+    ollama_bin = shutil.which("ollama")
+    if ollama_bin is None:
+        console.print(
+            "[yellow]Ollama isn't running and the 'ollama' command wasn't found "
+            "on PATH. Install it from https://ollama.com/download or start the "
+            "server yourself with 'ollama serve'.[/yellow]"
+        )
+        return
+
+    console.print("[cyan]Ollama server not detected — starting 'ollama serve'…[/cyan]")
+    try:
+        # Detach so the server outlives this CLI process; discard its output so
+        # it doesn't interleave with the interactive prompts.
+        subprocess.Popen(
+            [ollama_bin, "serve"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except Exception as e:
+        console.print(f"[yellow]Could not start 'ollama serve' automatically: {e}[/yellow]")
+        return
+
+    # Poll for readiness — the server takes a moment to bind its port.
+    for _ in range(20):  # ~10s total
+        if _ollama_server_up(url):
+            console.print("[green]✓ Ollama server is up.[/green]")
+            return
+        time.sleep(0.5)
+    console.print(
+        "[yellow]Started 'ollama serve' but it didn't answer within 10s. "
+        "It may still be coming up; continuing anyway.[/yellow]"
+    )
+
+
 def confirm_ollama_endpoint(url: str) -> None:
     """Show the resolved Ollama endpoint after provider selection.
 
@@ -647,6 +730,9 @@ def confirm_ollama_endpoint(url: str) -> None:
     missing the scheme/port that ollama-serve expects. The warning is
     advisory only — we don't reject malformed input, since the user may
     be doing something deliberately unusual (e.g. a reverse-proxy path).
+
+    Starting a local server (when one isn't running) is handled separately by
+    :func:`ensure_ollama_running`, called before this in the CLI flow.
     """
     from_env = os.environ.get("OLLAMA_BASE_URL")
     origin = " (from OLLAMA_BASE_URL)" if from_env and from_env == url else ""

@@ -186,3 +186,77 @@ def test_ollama_offers_custom_model_id():
         assert "custom" in values, f"Ollama {mode!r} missing 'custom' option: {entries}"
         # Custom option is last so it doesn't push the curated defaults off-screen
         assert values[-1] == "custom", f"'custom' should be last entry: {values}"
+
+
+# ---- provider ordering ----------------------------------------------------
+
+
+def test_ollama_listed_first_in_provider_dropdown():
+    """Ollama is the most-used local provider, so it heads the dropdown."""
+    import cli.utils as cli_utils
+    table = cli_utils._llm_provider_table()
+    assert table[0][1] == "ollama", f"Ollama should be first, got: {[k for _, k, _ in table]}"
+
+
+# ---- ensure_ollama_running auto-start -------------------------------------
+
+
+def test_ensure_running_noop_when_already_up(monkeypatch):
+    """If a server already answers, we neither warn nor spawn a process."""
+    import cli.utils as cli_utils
+    monkeypatch.setattr(cli_utils, "_ollama_server_up", lambda url, **kw: True)
+
+    def _boom(*a, **k):  # pragma: no cover - must not be called
+        raise AssertionError("should not spawn ollama serve when already up")
+
+    monkeypatch.setattr("subprocess.Popen", _boom)
+    cli_utils.ensure_ollama_running("http://localhost:11434/v1")
+
+
+def test_ensure_running_skips_remote_endpoints(monkeypatch):
+    """A remote OLLAMA_BASE_URL is someone else's box — never probe or spawn it."""
+    import cli.utils as cli_utils
+    probed = {"called": False}
+
+    def _probe(url, **kw):
+        probed["called"] = True
+        return False
+
+    monkeypatch.setattr(cli_utils, "_ollama_server_up", _probe)
+    monkeypatch.setattr(
+        "subprocess.Popen",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("no spawn for remote")),
+    )
+    cli_utils.ensure_ollama_running("http://remote-host:11434/v1")
+    assert probed["called"] is False
+
+
+def test_ensure_running_warns_when_binary_missing(monkeypatch, capsys):
+    """No server and no 'ollama' binary -> advisory install hint, no crash."""
+    import cli.utils as cli_utils
+    monkeypatch.setattr(cli_utils, "_ollama_server_up", lambda url, **kw: False)
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    cli_utils.ensure_ollama_running("http://localhost:11434/v1")
+    out = capsys.readouterr().out
+    assert "ollama.com/download" in out
+
+
+def test_ensure_running_spawns_serve_when_binary_present(monkeypatch, capsys):
+    """No server but 'ollama' on PATH -> launch 'ollama serve' detached."""
+    import cli.utils as cli_utils
+    # Down at first, then up after the "spawn" so the readiness poll succeeds fast.
+    states = iter([False, True])
+    monkeypatch.setattr(cli_utils, "_ollama_server_up", lambda url, **kw: next(states, True))
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/local/bin/ollama")
+    calls = {}
+
+    def _fake_popen(cmd, **kwargs):
+        calls["cmd"] = cmd
+        calls["kwargs"] = kwargs
+        return object()
+
+    monkeypatch.setattr("subprocess.Popen", _fake_popen)
+    cli_utils.ensure_ollama_running("http://localhost:11434/v1")
+    assert calls["cmd"] == ["/usr/local/bin/ollama", "serve"]
+    assert calls["kwargs"].get("start_new_session") is True
+    assert "up" in capsys.readouterr().out.lower()
